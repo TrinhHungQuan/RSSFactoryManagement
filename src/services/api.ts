@@ -9,5 +9,12 @@ export const API_ENDPOINTS = {
   getRoles: `${BASE_URL}/roles/get`,
   getCompanies: `${BASE_URL}/companys/dropdown-list`,
   getEngineeringTeams: `${BASE_URL}/teams/get`,
-  createUser:  `${BASE_URL}/users/create`
+  createUser:  `${BASE_URL}/users/create`,
+  deleteUser: `${BASE_URL}/users/delete`,
+  updateUser: `${BASE_URL}/users/update`,
+  changePassword: `${BASE_URL}/users/change-password`,
+  getCompaniesTable: `${BASE_URL}/companys/get`,
+  createCompany: `${BASE_URL}/companys/create`,
+  updateCompany: `${BASE_URL}/companys/update`,
+  deleteCompany: `${BASE_URL}/companys/delete`
 };

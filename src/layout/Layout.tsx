@@ -127,11 +127,6 @@ const Layout = () => {
         />
       </div>
 
-      {/* Backdrop */}
-      {!isSiderCollapsed && (
-        <div className="fixed inset-0 bg-black opacity-50 z-40" />
-      )}
-
       {/* Confirmation Dialog */}
       {showLogoutConfirmation && (
         <LogoutConfirm

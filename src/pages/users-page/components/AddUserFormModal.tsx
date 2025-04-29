@@ -35,8 +35,8 @@ const AddUserFormModal = ({
 
   useEffect(() => {
     if (!isOpen) {
-      setImageUrl(null); // 👈 clear image preview
-      onResetImage(); // 👈 notify parent if needed
+      setImageUrl(null); // clear image preview
+      onResetImage(); // notify parent if needed
     }
   }, [isOpen, onResetImage]);
 

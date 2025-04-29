@@ -3,7 +3,7 @@ import { useFormik } from "formik";
 import * as Yup from "yup";
 import { Alert, Snackbar } from "@mui/material";
 import { useState } from "react";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import { useNavigate } from "react-router-dom";
 import { API_ENDPOINTS } from "../../../services/api";
 
@@ -55,16 +55,19 @@ const LoginForm = () => {
           }
 
           navigate("/");
-        } else {
-          setSnackBarMessage(
-            "Authentication failed. Please check your credentials."
-          );
-          setSnackBarOpen(true);
         }
       } catch (error) {
         console.error("Login error:", error);
-        setSnackBarMessage("An error occurred during login.");
-        setSnackBarOpen(true);
+        if (error instanceof AxiosError && error.response) {
+          // If the error has a response object, extract the message
+          const errorMessage =
+            error.response?.data.message || "An unknown error occurred.";
+          setSnackBarMessage(errorMessage);
+          setSnackBarOpen(true);
+        } else {
+          setSnackBarMessage("Network error. Please try again later.");
+          setSnackBarOpen(true);
+        }
       }
     },
   });

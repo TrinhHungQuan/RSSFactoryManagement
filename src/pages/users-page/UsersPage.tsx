@@ -1,5 +1,5 @@
 import { Button, Pagination, Spin } from "antd";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FormikHelpers, useFormik } from "formik";
 import * as Yup from "yup";
 import AddUserFormModal from "./components/AddUserFormModal";
@@ -16,16 +16,19 @@ import { AxiosError } from "axios";
 import UserDetails from "./components/UserDetails";
 import { FaUserCircle } from "react-icons/fa";
 import { User } from "./hooks/useUsers";
-import { FormAddValues } from "./hooks/useFormValues";
+import { FormAddValues, FormEditValues } from "./hooks/useFormValues";
 import { format, parse } from "date-fns";
 import { Alert, Snackbar } from "@mui/material";
+import SearchInput from "../../components/SearchInput";
+import DeleteConfirmModal from "./components/DeleteConfirmModal";
+import FilterSelect from "../../components/FilterSelect";
 
 type LayoutContextType = {
   isSiderCollapsed: boolean;
 };
 
 // Define interfaces for the API response structure
-interface ApiUser {
+export interface ApiUser {
   userId: string;
   image: string;
   username: string;
@@ -59,122 +62,221 @@ interface ApiTeam {
   updateAt: string;
 }
 
-interface ApiResponse {
-  code: number;
-  message: string;
-  result: {
-    content: ApiUser[];
-    currentPage: number;
-    totalPages: number;
-    totalElements: number;
-  };
-}
-
 const UsersPage = () => {
   const { isSiderCollapsed } = useOutletContext<LayoutContextType>();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isDeleteConfirmModalOpen, setIsDeleteConfirmModalOpen] =
+    useState(false);
+  const [userIdToDelete, setUserIdToDelete] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [savedUserId, setSavedUserId] = useState("");
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [snackBarMessage, setSnackBarMessage] = useState("");
+  const [snackBarSeverity, setSnackBarSeverity] = useState<"success" | "error">(
+    "success"
+  );
+  const [snackBarOpen, setSnackBarOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roles, setRoles] = useState<{ label: string; value: string }[]>([]);
+  const [statusQuery, setStatusQuery] = useState("");
+  const [roleQuery, setRoleQuery] = useState("");
   // Pagination states
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
-  const [snackBarOpen, setSnackBarOpen] = useState(false);
-  const [snackBarMessage, setSnackBarMessage] = useState("");
-
-  useEffect(() => {
-    fetchUsers(currentPage, pageSize);
-  }, [currentPage, pageSize]);
 
   // Get the Users
-  const fetchUsers = async (page: number, size: number) => {
+  // Fetch all users on first load
+  const fetchAllUsers = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const accessToken =
+      const token =
         localStorage.getItem("token") || sessionStorage.getItem("token");
 
-      if (!accessToken) {
-        setError("Authentication required. Please login.");
-        setLoading(false);
-        return;
-      }
-
-      const response = await axios.get<ApiResponse>(API_ENDPOINTS.getUser, {
+      const response = await axios.get(API_ENDPOINTS.getUser, {
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${token}`,
         },
         params: {
-          page,
-          size,
+          page: 0,
+          size: 10000, // Assumes 10,000 can cover all users
         },
       });
-      if (response.data && response.data.result?.content) {
-        // Map API response to expected User format
-        const mappedUsers: User[] = response.data.result.content.map(
-          (user: ApiUser) => ({
-            userId: user.userId,
-            username: user.username,
-            firstName: user.firstname,
-            lastName: user.lastname,
-            company:
-              user.company?.length > 0
-                ? user.company.map(
-                    (c: { companyName: string }) => c.companyName
-                  )
-                : [],
-            engineeringTeam:
-              user.team?.length > 0
-                ? user.team.map((c: { name: string }) => c.name)
-                : [],
-            dateOfBirth: user.dateOfBirth ? new Date(user.dateOfBirth) : null,
-            role: user.roleName,
-            status: user.status === "ACTIVE" ? "Active" : "Inactive",
-            image: user.image || "",
-          })
-        );
 
-        setUsers(mappedUsers);
+      const fetchedUsers: User[] = response.data.result.content.map(
+        (user: ApiUser) => ({
+          userId: user.userId,
+          username: user.username,
+          firstName: user.firstname,
+          lastName: user.lastname,
+          company:
+            user.company?.map((c: { companyName: string }) => c.companyName) ||
+            [],
+          engineeringTeam:
+            user.team?.map((t: { name: string }) => t.name) || [],
+          dateOfBirth: user.dateOfBirth ? new Date(user.dateOfBirth) : null,
+          role: user.roleName,
+          status: user.status === "ACTIVE" ? "Active" : "Inactive",
+          image: user.image || "",
+        })
+      );
 
-        if (response.data.result.totalElements !== undefined) {
-          setTotalItems(response.data.result.totalElements);
-        }
-        // if (response.data.result.totalPages !== undefined) {
-        //   setTotalPages(response.data.result.totalPages);
-        // }
-        if (response.data.result.currentPage !== undefined) {
-          setCurrentPage(response.data.result.currentPage);
-        }
-      } else {
-        setUsers([]);
-      }
-    } catch (error) {
-      console.error("Error fetching user:", error);
+      setAllUsers(fetchedUsers);
+      setTotalItems(fetchedUsers.length);
+    } catch (err) {
+      console.error("Error fetching users:", err);
       setError("Failed to fetch users. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
+  // Fetch once on first render
+  useEffect(() => {
+    fetchAllUsers();
+  }, []);
+
+  // Update users when page or pageSize changes
+  useEffect(() => {
+    const startIndex = currentPage * pageSize;
+    const endIndex = startIndex + pageSize;
+    setUsers(allUsers.slice(startIndex, endIndex));
+  }, [currentPage, pageSize, allUsers]);
+
+  // Reload the table
+  const handleUserUpdated = () => {
+    fetchAllUsers();
+  };
+
+  // Page Handle
   const handlePageChange = (page: number) => {
-    // Ant Design Pagination is 1-indexed, but our API expects 0-indexed
     setCurrentPage(page - 1);
   };
 
   const handlePageSizeChange = (size: number) => {
     setPageSize(size);
-    setCurrentPage(0); // Reset to first page when changing page size
+    setCurrentPage(0);
   };
 
+  // Fetch Roles
+  const fetchRoles = useCallback(async () => {
+    try {
+      const accessToken =
+        localStorage.getItem("token") || sessionStorage.getItem("token");
+
+      if (!accessToken) {
+        console.error("Authentication required. Login!");
+        return;
+      }
+
+      const response = await axios.get(API_ENDPOINTS.getRoles, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (response.data && response.data.result) {
+        const rolesData = response.data.result.map(
+          (role: { name: string; roleName: string }) => ({
+            label: formatRole(role.name),
+            value: role.name,
+          })
+        );
+        setRoles([{ label: "All", value: "" }, ...rolesData]);
+      }
+    } catch (error) {
+      console.error("Error fetching roles: ", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRoles();
+  }, [fetchRoles]);
+
+  // Handle Show Add Modal
   const showAddModal = () => {
     setIsAddModalOpen(true);
   };
 
+  const handleCancelAddModal = () => {
+    setIsAddModalOpen(false);
+    addFormik.resetForm();
+  };
+
+  // Handle Show Edit Modal
+  const showEditModal = (userRole: string) => {
+    const loggedInUserRole = localStorage.getItem("currentRole");
+
+    if (loggedInUserRole !== "SUPER_ADMIN" && loggedInUserRole !== "ADMIN") {
+      setSnackBarMessage("You are not allowed to edit users.");
+      setSnackBarSeverity("error");
+      setSnackBarOpen(true);
+      return;
+    }
+
+    if (
+      loggedInUserRole === "ADMIN" &&
+      (userRole === "ADMIN" || userRole === "SUPER_ADMIN")
+    ) {
+      setSnackBarMessage("You are not allowed to edit this user.");
+      setSnackBarSeverity("error");
+      setSnackBarOpen(true);
+      return;
+    }
+
+    if (loggedInUserRole === "SUPER_ADMIN" && userRole === "SUPER_ADMIN") {
+      setSnackBarMessage("You are not allowed to edit this user.");
+      setSnackBarSeverity("error");
+      setSnackBarOpen(true);
+      return;
+    }
+
+    setIsEditModalOpen(true);
+  };
+
+  const handleCancelEditModal = () => {
+    setIsEditModalOpen(false);
+    editFormik.resetForm();
+  };
+
+  // Handle Show User Details
+  const showUserDetails = (userId: string) => {
+    setSelectedUserId(userId);
+    setIsDetailsOpen(true);
+  };
+
+  const handleCancelUserDetails = () => {
+    setIsDetailsOpen(false);
+  };
+
+  //  Handle Delete Confirm
+  const showDeleteConfirmModal = (userId: string) => {
+    setUserIdToDelete(userId);
+    setIsDeleteConfirmModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (userIdToDelete) {
+      await deleteUser(userIdToDelete);
+      fetchAllUsers();
+    }
+    setIsDeleteConfirmModalOpen(false);
+    setUserIdToDelete(null);
+  };
+
+  const handleDeleteCancel = () => {
+    setIsDeleteConfirmModalOpen(false);
+    setUserIdToDelete(null);
+  };
+
+  // Handle Snackbar
   const handleSnackbarClose = (
     event: React.SyntheticEvent | Event,
     reason: string
@@ -187,32 +289,19 @@ const UsersPage = () => {
     setSnackBarOpen(false);
   };
 
-  const showEditModal = () => {
-    setIsEditModalOpen(true);
-  };
-
-  const showUserDetails = (userId: string) => {
-    setSelectedUserId(userId);
-    setIsDetailsOpen(true);
-  };
-
-  const handleCancelAddModal = () => {
-    setIsAddModalOpen(false);
-    addFormik.resetForm();
-  };
-
   const resetImage = () => {
     // Do nothing if image state is inside modal
   };
 
-  const handleCancelEditModel = () => {
-    setIsEditModalOpen(false);
+  // Format Role
+  const formatRole = (role: string) => {
+    return role
+      .toLowerCase()
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
   };
-
-  const handleCancelUserDetails = () => {
-    setIsDetailsOpen(false);
-  };
-
+  // Format Date
   function formatDateForApi(dateStr: string | null): string | null {
     if (!dateStr) return null;
     try {
@@ -222,6 +311,8 @@ const UsersPage = () => {
       return null;
     }
   }
+
+  // Add Formik
   const addFormik = useFormik<FormAddValues>({
     initialValues: {
       firstName: "",
@@ -277,7 +368,7 @@ const UsersPage = () => {
         .required("Date of birth is required")
         .matches(
           /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/(19\d{2}|20\d{2})$/,
-          "Date of birth must be in format dd/mm/yyyy and year must be from 1900"
+          "Date of birth must be in format dd/mm/yyyy and from 1900"
         ),
 
       company: Yup.array()
@@ -309,7 +400,7 @@ const UsersPage = () => {
           image: values.image || null,
         };
 
-        const token =
+        const accessToken =
           localStorage.getItem("token") || sessionStorage.getItem("token");
 
         const response = await axios.post(
@@ -319,15 +410,19 @@ const UsersPage = () => {
             headers: {
               "Content-Type": "application/json",
               // Include auth token if your API requires it
-              ...(token && { Authorization: `Bearer ${token}` }),
+              ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
             },
           }
         );
         console.log("User created successfully: ", response.data);
 
+        setSnackBarMessage("Create user successfully"); // Set the success message
+        setSnackBarSeverity("success");
+        setSnackBarOpen(true);
+
         resetForm();
         handleCancelAddModal();
-        fetchUsers(currentPage, pageSize);
+        fetchAllUsers();
       } catch (error) {
         console.error("Error creating user:", error);
         if (error instanceof AxiosError && error.response) {
@@ -346,16 +441,18 @@ const UsersPage = () => {
     },
   });
 
-  const editFormik = useFormik({
+  // Edit Formik
+  const editFormik = useFormik<FormEditValues>({
     initialValues: {
       firstName: "",
       userName: "",
       role: "",
-      engineeringTeams: "",
+      engineeringTeams: [],
       lastName: "",
       dateOfBirth: "",
-      company: "",
+      company: [],
       status: "",
+      image: "",
     },
     validationSchema: Yup.object({
       firstName: Yup.string()
@@ -375,7 +472,10 @@ const UsersPage = () => {
 
       role: Yup.string().required("Role is required"),
 
-      engineeringTeams: Yup.string().required("Engineering Teams is required"),
+      engineeringTeams: Yup.array()
+        .of(Yup.string().required())
+        .min(1, "At least one team must be selected")
+        .required("Team is required"),
 
       lastName: Yup.string()
         .matches(/^[a-zA-Z]+$/, "Last name must only contain letters")
@@ -390,12 +490,124 @@ const UsersPage = () => {
           "Date of birth must be in format dd/mm/yyyy and year must be from 1900"
         ),
 
-      company: Yup.string().required("Company is required"),
+      company: Yup.array()
+        .of(Yup.string().required())
+        .min(1, "At least one company must be selected")
+        .required("Company is required"),
 
       status: Yup.string().required("Status is required"),
     }),
-    onSubmit: () => {},
+    onSubmit: async (
+      values: FormEditValues,
+      formikHelpers: FormikHelpers<FormEditValues>
+    ) => {
+      const { setSubmitting, resetForm } = formikHelpers;
+
+      try {
+        const payload = {
+          firstname: values.firstName,
+          lastname: values.lastName,
+          username: values.userName,
+          roleId: parseInt(values.role),
+          teamIds: values.engineeringTeams,
+          companyIds: values.company,
+          dateOfBirth: formatDateForApi(values.dateOfBirth),
+          status: values.status.toUpperCase(),
+          image: values.image || null,
+        };
+
+        const accessToken =
+          localStorage.getItem("token") || sessionStorage.getItem("token");
+
+        const response = await axios.put(
+          `${API_ENDPOINTS.updateUser}/${savedUserId}`,
+          payload,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              // Include auth token if your API requires it
+              ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+            },
+          }
+        );
+        console.log("User updated successfully: ", response.data);
+
+        setSnackBarMessage("Update user successfully"); // Set the success message
+        setSnackBarSeverity("success");
+        setSnackBarOpen(true);
+        handleCancelEditModal();
+        resetForm();
+        fetchAllUsers();
+      } catch (error) {
+        console.error("Error updating user:", error);
+        if (error instanceof AxiosError && error.response) {
+          // If the error has a response object, extract the message
+          const errorMessage =
+            error.response?.data.message || "An unknown error occurred.";
+          setSnackBarMessage(errorMessage); // Set the error message
+          setSnackBarSeverity("error");
+          setSnackBarOpen(true); // Open the Snackbar
+        } else {
+          setSnackBarMessage("Network error. Please try again later.");
+          setSnackBarSeverity("error");
+          setSnackBarOpen(true);
+        }
+      } finally {
+        setSubmitting(false);
+      }
+    },
   });
+
+  // Delete User
+  const deleteUser = async (userId: string) => {
+    const accessToken =
+      localStorage.getItem("token") || sessionStorage.getItem("token");
+    try {
+      await axios.delete(`${API_ENDPOINTS.deleteUser}/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      setSnackBarSeverity("success");
+      setSnackBarMessage("User deleted successfully");
+      setSnackBarOpen(true);
+    } catch (error) {
+      if (error instanceof AxiosError && error.response) {
+        const errorMessage =
+          error.response?.data.message || "An unknown error occurred.";
+        setSnackBarSeverity("error");
+        setSnackBarMessage(errorMessage);
+        setSnackBarOpen(true);
+      } else {
+        setSnackBarMessage("Network error. Please try again later.");
+        setSnackBarOpen(true);
+      }
+    }
+  };
+
+  // Function to filter and search users
+  const filterAndSearchUsers = useCallback(() => {
+    let filteredUsers = allUsers;
+
+    if (searchQuery) {
+      const lowerCaseQuery = searchQuery.toLowerCase();
+      filteredUsers = filteredUsers.filter((user) =>
+        user.username.toLowerCase().includes(lowerCaseQuery)
+      );
+    }
+
+    if (roleQuery !== "") {
+      filteredUsers = filteredUsers.filter((user) => user.role === roleQuery);
+    }
+
+    if (statusQuery !== "") {
+      filteredUsers = filteredUsers.filter(
+        (user) => user.status === statusQuery
+      );
+    }
+    return filteredUsers;
+  }, [allUsers, searchQuery, roleQuery, statusQuery]);
 
   const [sortOrderFirstName, setSortOrderFirstName] = useState<
     "asc" | "desc" | "none"
@@ -416,65 +628,99 @@ const UsersPage = () => {
     "none"
   );
 
-  // Sort Event
-  const sortUser = (sortUsersList: User[]) => {
-    if (sortOrderFirstName !== "none") {
-      return [...sortUsersList].sort((a, b) => {
-        if (sortOrderFirstName === "asc")
-          return a.firstName.localeCompare(b.firstName);
-        if (sortOrderFirstName === "desc")
-          return b.firstName.localeCompare(a.firstName);
-        return 0;
-      });
-    } else if (sortOrderLastName !== "none") {
-      return [...sortUsersList].sort((a, b) => {
-        if (sortOrderLastName === "asc")
-          return a.lastName.localeCompare(b.lastName);
-        if (sortOrderLastName === "desc")
-          return b.lastName.localeCompare(a.lastName);
-        return 0;
-      });
-    } else if (sortOrderCompany !== "none") {
-      return [...sortUsersList].sort((a, b) => {
-        const companyA = a.company[0] || "";
-        const companyB = b.company[0] || "";
-        if (sortOrderCompany === "asc") return companyA.localeCompare(companyB);
-        if (sortOrderCompany === "desc")
-          return companyB.localeCompare(companyA);
-        return 0;
-      });
-    } else if (sortOrderEngineeringTeam !== "none") {
-      return [...sortUsersList].sort((a, b) => {
-        const engineeringTeamA = a.engineeringTeam[0] || "";
-        const engineeringTeamB = b.engineeringTeam[0] || "";
-        if (sortOrderEngineeringTeam === "asc")
-          return engineeringTeamA.localeCompare(engineeringTeamB);
-        if (sortOrderEngineeringTeam === "desc")
-          return engineeringTeamB.localeCompare(engineeringTeamA);
-        return 0;
-      });
-    } else if (sortOrderDateOfBirth !== "none") {
-      return [...sortUsersList].sort((a, b) => {
-        if (!a.dateOfBirth && !b.dateOfBirth) return 0;
-        if (!a.dateOfBirth) return sortOrderDateOfBirth === "asc" ? -1 : 1;
-        if (!b.dateOfBirth) return sortOrderDateOfBirth === "asc" ? 1 : -1;
-        const dateA = a.dateOfBirth.getTime();
-        const dateB = b.dateOfBirth.getTime();
+  // Sort Event: Update the sortUser function to sort the allUsers array
+  const sortUser = useCallback(
+    (usersList: User[]) => {
+      if (sortOrderFirstName !== "none") {
+        return [...usersList].sort((a, b) => {
+          if (sortOrderFirstName === "asc")
+            return a.firstName.localeCompare(b.firstName);
+          if (sortOrderFirstName === "desc")
+            return b.firstName.localeCompare(a.firstName);
+          return 0;
+        });
+      } else if (sortOrderLastName !== "none") {
+        return [...usersList].sort((a, b) => {
+          if (sortOrderLastName === "asc")
+            return a.lastName.localeCompare(b.lastName);
+          if (sortOrderLastName === "desc")
+            return b.lastName.localeCompare(a.lastName);
+          return 0;
+        });
+      } else if (sortOrderCompany !== "none") {
+        return [...usersList].sort((a, b) => {
+          const companyA = a.company[0] || "";
+          const companyB = b.company[0] || "";
+          if (sortOrderCompany === "asc")
+            return companyA.localeCompare(companyB);
+          if (sortOrderCompany === "desc")
+            return companyB.localeCompare(companyA);
+          return 0;
+        });
+      } else if (sortOrderEngineeringTeam !== "none") {
+        return [...usersList].sort((a, b) => {
+          const teamA = a.engineeringTeam[0] || "";
+          const teamB = b.engineeringTeam[0] || "";
+          if (sortOrderEngineeringTeam === "asc")
+            return teamA.localeCompare(teamB);
+          if (sortOrderEngineeringTeam === "desc")
+            return teamB.localeCompare(teamA);
+          return 0;
+        });
+      } else if (sortOrderDateOfBirth !== "none") {
+        return [...usersList].sort((a, b) => {
+          if (!a.dateOfBirth && !b.dateOfBirth) return 0;
+          if (!a.dateOfBirth) return sortOrderDateOfBirth === "asc" ? -1 : 1;
+          if (!b.dateOfBirth) return sortOrderDateOfBirth === "asc" ? 1 : -1;
+          const dateA = a.dateOfBirth.getTime();
+          const dateB = b.dateOfBirth.getTime();
+          if (sortOrderDateOfBirth === "asc") return dateA - dateB;
+          if (sortOrderDateOfBirth === "desc") return dateB - dateA;
+          return 0;
+        });
+      } else if (sortOrderRole !== "none") {
+        return [...usersList].sort((a, b) => {
+          if (sortOrderRole === "asc") return a.role.localeCompare(b.role);
+          if (sortOrderRole === "desc") return b.role.localeCompare(a.role);
+          return 0;
+        });
+      }
+      return usersList;
+    },
+    [
+      sortOrderFirstName,
+      sortOrderLastName,
+      sortOrderCompany,
+      sortOrderEngineeringTeam,
+      sortOrderDateOfBirth,
+      sortOrderRole,
+    ]
+  );
 
-        if (sortOrderDateOfBirth === "asc") return dateA - dateB;
-        if (sortOrderDateOfBirth === "desc") return dateB - dateA;
-        return 0;
-      });
-    } else if (sortOrderRole !== "none") {
-      return [...sortUsersList].sort((a, b) => {
-        if (sortOrderRole === "asc") return a.role.localeCompare(b.role);
-        if (sortOrderRole === "desc") return b.role.localeCompare(a.role);
-        return 0;
-      });
-    }
-    return sortUsersList;
-  };
+  useEffect(() => {
+    const filteredAndSearched = filterAndSearchUsers(); // First filter and search
+    const sortedUsers = sortUser(filteredAndSearched); // Then sort
+    const startIndex = currentPage * pageSize; // then paginate
+    const endIndex = startIndex + pageSize;
+    setUsers(sortedUsers.slice(startIndex, endIndex));
+    setTotalItems(sortedUsers.length); // Update total items for pagination
+  }, [
+    filterAndSearchUsers,
+    sortUser,
+    currentPage,
+    pageSize,
+    roleQuery,
+    statusQuery,
+    searchQuery,
+    sortOrderFirstName,
+    sortOrderLastName,
+    sortOrderCompany,
+    sortOrderEngineeringTeam,
+    sortOrderDateOfBirth,
+    sortOrderRole,
+  ]);
 
+  // Sort Handlers
   const handleSortFirstNameClick = () => {
     setSortOrderFirstName((prevOrder) => {
       if (prevOrder === "none") return "asc";
@@ -555,6 +801,12 @@ const UsersPage = () => {
 
   const sortedUsers = sortUser(users);
 
+  const optionStatus = [
+    { label: "All", value: "" },
+    { label: "Active", value: "Active" },
+    { label: "Inactive", value: "Inactive" },
+  ];
+
   return (
     <>
       <Snackbar
@@ -565,7 +817,7 @@ const UsersPage = () => {
       >
         <Alert
           onClose={handleAlertClose}
-          severity="error"
+          severity={snackBarSeverity}
           variant="filled"
           sx={{ width: "100%" }}
         >
@@ -588,12 +840,49 @@ const UsersPage = () => {
             + Add User
           </Button>
         </div>
+
         {/* Error message display */}
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mx-6 mb-4">
             <p>{error}</p>
           </div>
         )}
+
+        <div className="w-full px-6 mb-3 flex flex-row gap-2 items-center justify-center">
+          <div className="flex-1">
+            <SearchInput
+              value={searchQuery}
+              placeholder="Search by username"
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-row gap-2 items-center w-1/3">
+            <FilterSelect
+              label="Role"
+              name="roleFilter"
+              value={roleQuery}
+              options={roles || []}
+              onChange={(e) => {
+                const selectedValue = e.target.value;
+                setRoleQuery(selectedValue);
+                setCurrentPage(0);
+              }}
+            />
+            <FilterSelect
+              label="Status"
+              name="statusFilter"
+              value={statusQuery}
+              options={optionStatus}
+              onChange={(e) => {
+                const selectedValue = e.target.value;
+                setStatusQuery(selectedValue);
+                setCurrentPage(0);
+
+                console.log("Selected Status:", selectedValue);
+              }}
+            />
+          </div>
+        </div>
         <div className="overflow-x-auto px-6 scrollbar-none">
           <div className="overflow-hidden rounded-lg border border-gray-300">
             <table className="min-w-[1000px] w-full text-sm">
@@ -760,7 +1049,7 @@ const UsersPage = () => {
                           ? format(new Date(user.dateOfBirth), "dd/MM/yyyy")
                           : "-"}
                       </td>
-                      <td className="px-4 py-2">{user.role}</td>
+                      <td className="px-4 py-2">{formatRole(user.role)}</td>
                       <td className="px-4 py-2">
                         <div
                           className={`border font-semibold rounded-3xl flex items-center justify-center pt-0.5 pb-0.5 pl-1 pr-1 ${
@@ -772,14 +1061,15 @@ const UsersPage = () => {
                           {user.status}
                         </div>
                       </td>
-                      <td className="flex flex-row items-center justify-center">
+                      <td className="flex flex-row items-center justify-center py-2">
                         <Button
                           type="link"
                           icon={<FiEdit3 />}
                           style={{ width: 32, height: 32, color: "#F97316" }}
                           onClick={(e) => {
                             e.stopPropagation(); // Prevents row click
-                            showEditModal();
+                            setSavedUserId(user.userId);
+                            showEditModal(user.role);
                           }}
                         />
                         <Button
@@ -788,7 +1078,7 @@ const UsersPage = () => {
                           style={{ width: 32, height: 32, color: "black" }}
                           onClick={(e) => {
                             e.stopPropagation(); // Prevents row click
-                            // Add delete logic here
+                            showDeleteConfirmModal(user.userId);
                           }}
                         />
                       </td>
@@ -837,11 +1127,16 @@ const UsersPage = () => {
                 total={totalItems}
                 onChange={handlePageChange}
                 showSizeChanger={false} // We use custom size dropdown on the left
-                showQuickJumper
               />
             </div>
           )}
         </div>
+
+        <DeleteConfirmModal
+          isOpen={isDeleteConfirmModalOpen}
+          onCancel={handleDeleteCancel}
+          onConfirm={handleDeleteConfirm}
+        />
 
         <AddUserFormModal
           isOpen={isAddModalOpen}
@@ -851,14 +1146,17 @@ const UsersPage = () => {
         />
         <EditUserFormModal
           isOpen={isEditModalOpen}
-          onCancel={handleCancelEditModel}
+          onCancel={handleCancelEditModal}
           formik={editFormik}
+          onResetImage={resetImage}
+          userId={savedUserId}
         />
 
         <UserDetails
           isOpen={isDetailsOpen}
           onCancel={handleCancelUserDetails}
           userId={selectedUserId}
+          onUserUpdated={handleUserUpdated}
         />
       </div>
     </>
