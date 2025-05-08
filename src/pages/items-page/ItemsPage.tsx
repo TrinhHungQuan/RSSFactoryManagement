@@ -28,6 +28,7 @@ const ItemsPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [allItems, setAllItems] = useState<Item[]>([]);
+  const [rawItems, setRawItems] = useState<Item[]>([]);
   const [dynamicOptions, setDynamicOptions] = useState<
     Record<string, { label: string; value: string }[]>
   >({});
@@ -189,7 +190,7 @@ const ItemsPage = () => {
         );
 
         setAllItems(fetchedItems);
-
+        setRawItems(fetchedItems);
         // Update pagination info from the API response
         if (response.data.result.totalElements) {
           setTotalItems(response.data.result.totalElements);
@@ -251,19 +252,18 @@ const ItemsPage = () => {
         value: String(val),
       }));
 
-      // Add "All" option at the top
       options[key] = [{ label: "All", value: "" }, ...selectOptions];
     });
     return options;
   };
 
   useEffect(() => {
-    if (allItems.length > 0) {
+    if (rawItems.length > 0) {
       const keysToFilter = configFilters.map((filter) => filter.name);
-      const generatedOptions = extractOptionsFromItems(allItems, keysToFilter);
+      const generatedOptions = extractOptionsFromItems(rawItems, keysToFilter);
       setDynamicOptions(generatedOptions);
     }
-  }, [allItems, configFilters]);
+  }, [rawItems, configFilters]);
 
   const handleFilterChange = (name: string, value: string) => {
     setFilterValues((prev) => ({
@@ -275,25 +275,47 @@ const ItemsPage = () => {
   // Apply filters
   const handleApplyFilters = async () => {
     try {
-      setLoading(true); // show loading while fetching
+      setLoading(true);
+
+      // Convert string values to numbers
+      const normalizedFilters = Object.fromEntries(
+        Object.entries(filterValues).map(([key, value]) => {
+          const numberValue = Number(value);
+          const isNumber = !isNaN(numberValue) && value.trim() !== "";
+          return [key, isNumber ? numberValue : value];
+        })
+      );
+
       const accessToken =
         localStorage.getItem("token") || sessionStorage.getItem("token");
+
       const response = await axios.post(
         API_ENDPOINTS.filterItems,
         {
-          filters: filterValues,
+          filters: normalizedFilters,
         },
         {
           headers: {
             "Content-Type": "application/json",
-            // Include auth token if your API requires it
             ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
           },
         }
       );
-      const content = response.data?.result?.content || [];
-      setAllItems(content); // update item list
-      setTotalItems(content.length); // if needed for pagination
+
+      let content = response.data?.result?.content || [];
+
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        content = content.filter((item: Record<string, unknown>) =>
+          Object.values(item).some(
+            (value: unknown) => String(value).toLowerCase() === query
+          )
+        );
+      }
+
+      setIsFiltersCollapsed(true);
+      setAllItems(content);
+      setTotalItems(content.length);
     } catch (error) {
       console.error("Error applying filters:", error);
     } finally {
@@ -321,6 +343,11 @@ const ItemsPage = () => {
                 value={searchQuery}
                 placeholder="Search by Job Code, Job ID, Piece No, Drawing No, Picking List, File Name, Company Name,..."
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleApplyFilters();
+                  }
+                }}
               />
             </div>
             <div className="flex flex-row gap-2 items-center w-1/3">
@@ -615,6 +642,9 @@ const ItemsPage = () => {
                 .then((response) => {
                   console.log("Config saved successfully: ", response.data);
                   fetchUIConfig();
+                  setFilterValues({});
+                  fetchAllItems();
+                  setSearchQuery("");
                 })
                 .catch((error) => {
                   console.error("Error saving config: ", error);

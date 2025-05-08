@@ -334,7 +334,7 @@ const UsersPage = () => {
 
   // Handle Snackbar
   const handleSnackbarClose = (
-    event: React.SyntheticEvent | Event,
+    _event: React.SyntheticEvent | Event,
     reason: string
   ) => {
     if (reason === "clickaway") return;
