@@ -141,7 +141,7 @@ const Layout = () => {
       )}
 
       {/* Main content */}
-      <div className="flex-1">
+      <div className="flex-1 h-full overflow-auto">
         <Outlet context={{ isSiderCollapsed }} />
       </div>
     </div>

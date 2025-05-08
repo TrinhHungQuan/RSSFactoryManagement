@@ -4,7 +4,7 @@ import { FormikHelpers, useFormik } from "formik";
 import * as Yup from "yup";
 import AddUserFormModal from "./components/AddUserFormModal";
 import EditUserFormModal from "./components/EditFormModal";
-import { useOutletContext } from "react-router-dom";
+
 import { FiEdit3 } from "react-icons/fi";
 import { RiDeleteBinLine } from "react-icons/ri";
 import { RxCaretSort } from "react-icons/rx";
@@ -22,10 +22,6 @@ import { Alert, Snackbar } from "@mui/material";
 import SearchInput from "../../components/SearchInput";
 import DeleteConfirmModal from "./components/DeleteConfirmModal";
 import FilterSelect from "../../components/FilterSelect";
-
-type LayoutContextType = {
-  isSiderCollapsed: boolean;
-};
 
 // Define interfaces for the API response structure
 export interface ApiUser {
@@ -63,7 +59,6 @@ interface ApiTeam {
 }
 
 const UsersPage = () => {
-  const { isSiderCollapsed } = useOutletContext<LayoutContextType>();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -130,9 +125,12 @@ const UsersPage = () => {
 
       setAllUsers(fetchedUsers);
       setTotalItems(fetchedUsers.length);
-    } catch (err) {
-      console.error("Error fetching users:", err);
-      setError("Failed to fetch users. Please try again.");
+    } catch (error) {
+      if (error instanceof AxiosError && error.response) {
+        const errorMessage =
+          error.response?.data.message || "An unknown error occurred.";
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -200,8 +198,39 @@ const UsersPage = () => {
     fetchRoles();
   }, [fetchRoles]);
 
+  // Get Decode Token for permissions
+  const getDecodedToken = () => {
+    const token =
+      localStorage.getItem("token") || sessionStorage.getItem("token");
+    if (!token) return null;
+
+    try {
+      const base64Url = token.split(".")[1];
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split("")
+          .map((c) => `%${("00" + c.charCodeAt(0).toString(16)).slice(-2)}`)
+          .join("")
+      );
+      return JSON.parse(jsonPayload);
+    } catch (error) {
+      console.error("Error decoding token: ", error);
+      return null;
+    }
+  };
+
   // Handle Show Add Modal
   const showAddModal = () => {
+    const decodedToken = getDecodedToken();
+    const scope: string = decodedToken?.scope || "";
+
+    if (!scope.includes("ADD_USER")) {
+      setSnackBarMessage("You do not have permission to add users.");
+      setSnackBarSeverity("error");
+      setSnackBarOpen(true);
+      return;
+    }
     setIsAddModalOpen(true);
   };
 
@@ -212,26 +241,27 @@ const UsersPage = () => {
 
   // Handle Show Edit Modal
   const showEditModal = (userRole: string) => {
-    const loggedInUserRole = localStorage.getItem("currentRole");
+    const decodedToken = getDecodedToken();
+    const scope: string = decodedToken?.scope || "";
+    const loggedInUserRole = localStorage.getItem("currentRole")?.toUpperCase();
 
-    if (loggedInUserRole !== "SUPER_ADMIN" && loggedInUserRole !== "ADMIN") {
-      setSnackBarMessage("You are not allowed to edit users.");
+    if (!scope.includes("EDIT_USER")) {
+      setSnackBarMessage("You do not have permission to edit users.");
       setSnackBarSeverity("error");
       setSnackBarOpen(true);
       return;
     }
 
-    if (
-      loggedInUserRole === "ADMIN" &&
-      (userRole === "ADMIN" || userRole === "SUPER_ADMIN")
-    ) {
+    const targetUserRole = userRole.toUpperCase();
+
+    if (targetUserRole === "SUPER_ADMIN") {
       setSnackBarMessage("You are not allowed to edit this user.");
       setSnackBarSeverity("error");
       setSnackBarOpen(true);
       return;
     }
 
-    if (loggedInUserRole === "SUPER_ADMIN" && userRole === "SUPER_ADMIN") {
+    if (targetUserRole === loggedInUserRole) {
       setSnackBarMessage("You are not allowed to edit this user.");
       setSnackBarSeverity("error");
       setSnackBarOpen(true);
@@ -257,7 +287,33 @@ const UsersPage = () => {
   };
 
   //  Handle Delete Confirm
-  const showDeleteConfirmModal = (userId: string) => {
+  const showDeleteConfirmModal = (userId: string, userRole: string) => {
+    const decodedToken = getDecodedToken();
+    const scope: string = decodedToken?.scope || "";
+    const loggedInUserRole = localStorage.getItem("currentRole")?.toUpperCase();
+
+    if (!scope.includes("EDIT_USER")) {
+      setSnackBarMessage("You do not have permission to delete users.");
+      setSnackBarSeverity("error");
+      setSnackBarOpen(true);
+      return;
+    }
+
+    const targetUserRole = userRole.toUpperCase();
+
+    if (targetUserRole === "SUPER_ADMIN") {
+      setSnackBarMessage("You are not allowed to delete this user.");
+      setSnackBarSeverity("error");
+      setSnackBarOpen(true);
+      return;
+    }
+
+    if (targetUserRole === loggedInUserRole) {
+      setSnackBarMessage("You are not allowed to delete this user.");
+      setSnackBarSeverity("error");
+      setSnackBarOpen(true);
+      return;
+    }
     setUserIdToDelete(userId);
     setIsDeleteConfirmModalOpen(true);
   };
@@ -330,7 +386,7 @@ const UsersPage = () => {
     validationSchema: Yup.object({
       firstName: Yup.string()
         .required("First name is required")
-        .matches(/^[a-zA-z\s]+$/, "Must only contain letters")
+        .matches(/^[a-zA-z]+$/, "Must only contain letters")
         .min(3, "Minimum 3 letters")
         .max(30, "Maximum 30 letters"),
 
@@ -359,7 +415,7 @@ const UsersPage = () => {
         .required("Password is required"),
 
       lastName: Yup.string()
-        .matches(/^[a-zA-Z\s]+$/, "Last name must only contain letters")
+        .matches(/^[a-zA-Z]+$/, "Last name must only contain letters")
         .min(3, "Minimum 3 letters")
         .max(30, "Maximum 30 letters")
         .required("Last Name is required"),
@@ -430,9 +486,11 @@ const UsersPage = () => {
           const errorMessage =
             error.response?.data.message || "An unknown error occurred.";
           setSnackBarMessage(errorMessage); // Set the error message
+          setSnackBarSeverity("error");
           setSnackBarOpen(true); // Open the Snackbar
         } else {
           setSnackBarMessage("Network error. Please try again later.");
+          setSnackBarSeverity("error");
           setSnackBarOpen(true);
         }
       } finally {
@@ -824,11 +882,7 @@ const UsersPage = () => {
           {snackBarMessage}
         </Alert>
       </Snackbar>
-      <div
-        className={`transition-all duration-300 ease-in-out ${
-          isSiderCollapsed ? "lg:pl-[0px] pl-[60px]" : "pl-[220px]"
-        }`}
-      >
+      <div className={`transition-all duration-300 ease-in-out pl-[0px]`}>
         <div className="flex justify-between items-center top-0 ml-6 mr-6 mb-4 mt-[15px] pt-0 pl-0">
           <h1 className="text-xl font-semibold">User Management</h1>
           <Button
@@ -883,223 +937,226 @@ const UsersPage = () => {
             />
           </div>
         </div>
-        <div className="overflow-x-auto px-6 scrollbar-none">
+        <div className="p-4">
           <div className="overflow-hidden rounded-lg border border-gray-300">
-            <table className="min-w-[1000px] w-full text-sm">
-              <thead>
-                <tr className="bg-gray-200 border-b border-gray-300">
-                  <th className="px-4 py-2 cursor-pointer font-semibold">
-                    <span className="flex items-center justify-between"></span>
-                  </th>
-                  <th className="px-4 py-2 cursor-pointer font-semibold">
-                    <span className="flex items-center justify-between">
-                      Username
-                    </span>
-                  </th>
-                  <th
-                    className="px-4 py-2 cursor-pointer font-semibold"
-                    onClick={handleSortFirstNameClick}
-                  >
-                    <span className="flex items-center justify-between">
-                      First Name
-                      {sortOrderFirstName === "none" && (
-                        <RxCaretSort className="w-4 h-4" />
-                      )}
-                      {sortOrderFirstName === "asc" && (
-                        <RxCaretDown className="w-4 h-4" />
-                      )}
-                      {sortOrderFirstName === "desc" && (
-                        <RxCaretUp className="w-4 h-4" />
-                      )}
-                    </span>
-                  </th>
-                  <th className="px-4 py-2 cursor-pointer font-semibold">
-                    <span
-                      className="flex items-center justify-start"
-                      onClick={handleSortLastNameClick}
+            <div className="overflow-x-auto">
+              <table className="min-w-[1000px] w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-200 border-b border-gray-300">
+                    <th className="px-4 py-2 cursor-pointer font-semibold">
+                      <span className="flex items-center justify-between"></span>
+                    </th>
+                    <th className="px-4 py-2 cursor-pointer font-semibold">
+                      <span className="flex items-center justify-between">
+                        Username
+                      </span>
+                    </th>
+                    <th
+                      className="px-4 py-2 cursor-pointer font-semibold"
+                      onClick={handleSortFirstNameClick}
                     >
-                      Last Name
-                      {sortOrderLastName === "none" && (
-                        <RxCaretSort className="w-4 h-4" />
-                      )}
-                      {sortOrderLastName === "asc" && (
-                        <RxCaretDown className="w-4 h-4" />
-                      )}
-                      {sortOrderLastName === "desc" && (
-                        <RxCaretUp className="w-4 h-4" />
-                      )}
-                    </span>
-                  </th>
-                  <th
-                    className="px-4 py-2 cursor-pointer font-semibold"
-                    onClick={handleSortCompanyClick}
-                  >
-                    <span className="flex items-center justify-between">
-                      Company
-                      {sortOrderCompany === "none" && (
-                        <RxCaretSort className="w-4 h-4" />
-                      )}
-                      {sortOrderCompany === "asc" && (
-                        <RxCaretDown className="w-4 h-4" />
-                      )}
-                      {sortOrderCompany === "desc" && (
-                        <RxCaretUp className="w-4 h-4" />
-                      )}
-                    </span>
-                  </th>
-                  <th className="px-4 py-2 cursor-pointer font-semibold">
-                    <span
-                      className="flex items-center justify-start"
-                      onClick={handleSortEngineeringTeamClick}
+                      <span className="flex items-center justify-between">
+                        First Name
+                        {sortOrderFirstName === "none" && (
+                          <RxCaretSort className="w-4 h-4" />
+                        )}
+                        {sortOrderFirstName === "asc" && (
+                          <RxCaretDown className="w-4 h-4" />
+                        )}
+                        {sortOrderFirstName === "desc" && (
+                          <RxCaretUp className="w-4 h-4" />
+                        )}
+                      </span>
+                    </th>
+                    <th className="px-4 py-2 cursor-pointer font-semibold">
+                      <span
+                        className="flex items-center justify-start"
+                        onClick={handleSortLastNameClick}
+                      >
+                        Last Name
+                        {sortOrderLastName === "none" && (
+                          <RxCaretSort className="w-4 h-4" />
+                        )}
+                        {sortOrderLastName === "asc" && (
+                          <RxCaretDown className="w-4 h-4" />
+                        )}
+                        {sortOrderLastName === "desc" && (
+                          <RxCaretUp className="w-4 h-4" />
+                        )}
+                      </span>
+                    </th>
+                    <th
+                      className="px-4 py-2 cursor-pointer font-semibold"
+                      onClick={handleSortCompanyClick}
                     >
-                      Engineering Team
-                      {sortOrderEngineeringTeam === "none" && (
-                        <RxCaretSort className="w-4 h-4" />
-                      )}
-                      {sortOrderEngineeringTeam === "asc" && (
-                        <RxCaretDown className="w-4 h-4" />
-                      )}
-                      {sortOrderEngineeringTeam === "desc" && (
-                        <RxCaretUp className="w-4 h-4" />
-                      )}
-                    </span>
-                  </th>
-                  <th className="px-4 py-2 cursor-pointer font-semibold">
-                    <span
-                      className="flex items-center justify-between"
-                      onClick={handleSortDateOfBirthClick}
-                    >
-                      Date of Birth
-                      {sortOrderDateOfBirth === "none" && (
-                        <RxCaretSort className="w-4 h-4" />
-                      )}
-                      {sortOrderDateOfBirth === "asc" && (
-                        <RxCaretDown className="w-4 h-4" />
-                      )}
-                      {sortOrderDateOfBirth === "desc" && (
-                        <RxCaretUp className="w-4 h-4" />
-                      )}
-                    </span>
-                  </th>
-                  <th className="px-4 py-2 cursor-pointer font-semibold">
-                    <span
-                      className="flex items-center justify-start"
-                      onClick={handleSortRoleClick}
-                    >
-                      Role
-                      {sortOrderRole === "none" && (
-                        <RxCaretSort className="w-4 h-4" />
-                      )}
-                      {sortOrderRole === "asc" && (
-                        <RxCaretDown className="w-4 h-4" />
-                      )}
-                      {sortOrderRole === "desc" && (
-                        <RxCaretUp className="w-4 h-4" />
-                      )}
-                    </span>
-                  </th>
-                  <th className="px-4 py-2 cursor-pointer font-semibold">
-                    <span className="flex items-center justify-start">
-                      Status
-                    </span>
-                  </th>
-                  <th className="px-4 py-2 cursor-pointer font-semibold">
-                    <span className="flex items-center justify-center">
-                      Action
-                    </span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedUsers.length > 0 ? (
-                  sortedUsers.map((user) => (
-                    <tr
-                      key={user.userId}
-                      className="border-b border-gray-300 hover:bg-gray-50 cursor-pointer"
-                      onClick={() => showUserDetails(user.userId)}
-                    >
-                      <td className="px-4 py-2">
-                        {user.image ? (
-                          <img
-                            src={`${BASE_URL}/${user.image}`}
-                            alt={`${user.firstName} ${user.lastName}`}
-                            className="w-6 h-6 rounded-full object-cover flex items-center justify-center"
+                      <span className="flex items-center justify-between">
+                        Company
+                        {sortOrderCompany === "none" && (
+                          <RxCaretSort className="w-4 h-4" />
+                        )}
+                        {sortOrderCompany === "asc" && (
+                          <RxCaretDown className="w-4 h-4" />
+                        )}
+                        {sortOrderCompany === "desc" && (
+                          <RxCaretUp className="w-4 h-4" />
+                        )}
+                      </span>
+                    </th>
+                    <th className="px-4 py-2 cursor-pointer font-semibold">
+                      <span
+                        className="flex items-center justify-start"
+                        onClick={handleSortEngineeringTeamClick}
+                      >
+                        Engineering Team
+                        {sortOrderEngineeringTeam === "none" && (
+                          <RxCaretSort className="w-4 h-4" />
+                        )}
+                        {sortOrderEngineeringTeam === "asc" && (
+                          <RxCaretDown className="w-4 h-4" />
+                        )}
+                        {sortOrderEngineeringTeam === "desc" && (
+                          <RxCaretUp className="w-4 h-4" />
+                        )}
+                      </span>
+                    </th>
+                    <th className="px-4 py-2 cursor-pointer font-semibold">
+                      <span
+                        className="flex items-center justify-between"
+                        onClick={handleSortDateOfBirthClick}
+                      >
+                        Date of Birth
+                        {sortOrderDateOfBirth === "none" && (
+                          <RxCaretSort className="w-4 h-4" />
+                        )}
+                        {sortOrderDateOfBirth === "asc" && (
+                          <RxCaretDown className="w-4 h-4" />
+                        )}
+                        {sortOrderDateOfBirth === "desc" && (
+                          <RxCaretUp className="w-4 h-4" />
+                        )}
+                      </span>
+                    </th>
+                    <th className="px-4 py-2 cursor-pointer font-semibold">
+                      <span
+                        className="flex items-center justify-start"
+                        onClick={handleSortRoleClick}
+                      >
+                        Role
+                        {sortOrderRole === "none" && (
+                          <RxCaretSort className="w-4 h-4" />
+                        )}
+                        {sortOrderRole === "asc" && (
+                          <RxCaretDown className="w-4 h-4" />
+                        )}
+                        {sortOrderRole === "desc" && (
+                          <RxCaretUp className="w-4 h-4" />
+                        )}
+                      </span>
+                    </th>
+                    <th className="px-4 py-2 cursor-pointer font-semibold">
+                      <span className="flex items-center justify-start">
+                        Status
+                      </span>
+                    </th>
+                    <th className="px-4 py-2 cursor-pointer font-semibold">
+                      <span className="flex items-center justify-center">
+                        Action
+                      </span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedUsers.length > 0 ? (
+                    sortedUsers.map((user) => (
+                      <tr
+                        key={user.userId}
+                        className="border-b border-gray-300 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => showUserDetails(user.userId)}
+                      >
+                        <td className="px-4 py-2">
+                          {user.image ? (
+                            <img
+                              src={`${BASE_URL}/${user.image}`}
+                              alt={`${user.firstName} ${user.lastName}`}
+                              className="w-6 h-6 rounded-full object-cover flex items-center justify-center"
+                            />
+                          ) : (
+                            <FaUserCircle className="w-6 h-6" />
+                          )}
+                        </td>
+                        <td className="px-4 py-2">{user.username}</td>
+                        <td className="px-4 py-2">{user.firstName}</td>
+                        <td className="px-4 py-2">
+                          {user.lastName ? user.lastName : "-"}
+                        </td>
+                        <td className="px-4 py-2">
+                          {user.company && user.company.length > 0
+                            ? user.company.join(", ")
+                            : "-"}
+                        </td>
+                        <td className="px-4 py-2">
+                          {user.engineeringTeam &&
+                          user.engineeringTeam.length > 0
+                            ? user.engineeringTeam.join(", ")
+                            : "-"}
+                        </td>
+                        <td className="px-4 py-2">
+                          {user.dateOfBirth
+                            ? format(new Date(user.dateOfBirth), "dd/MM/yyyy")
+                            : "-"}
+                        </td>
+                        <td className="px-4 py-2">{formatRole(user.role)}</td>
+                        <td className="px-4 py-2">
+                          <div
+                            className={`border font-semibold rounded-3xl flex items-center justify-center pt-0.5 pb-0.5 pl-1 pr-1 ${
+                              user.status === "Active"
+                                ? "border-green-600 bg-green-50 text-green-600 text-xs"
+                                : "border-gray-600 bg-gray-50 text-gray-600 text-xs"
+                            }`}
+                          >
+                            {user.status}
+                          </div>
+                        </td>
+                        <td className="flex flex-row items-center justify-center py-2">
+                          <Button
+                            type="link"
+                            icon={<FiEdit3 />}
+                            style={{ width: 32, height: 32, color: "#F97316" }}
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevents row click
+                              setSavedUserId(user.userId);
+                              showEditModal(user.role);
+                            }}
                           />
+                          <Button
+                            type="link"
+                            icon={<RiDeleteBinLine />}
+                            style={{ width: 32, height: 32, color: "black" }}
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevents row click
+                              showDeleteConfirmModal(user.userId, user.role);
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={10} className="px-4 py-4 text-center">
+                        {loading ? (
+                          <div className="flex flex-row gap-2 items-center justify-center">
+                            <p>Loading</p>
+                            <Spin />
+                          </div>
                         ) : (
-                          <FaUserCircle className="w-6 h-6" />
+                          "No users found"
                         )}
                       </td>
-                      <td className="px-4 py-2">{user.username}</td>
-                      <td className="px-4 py-2">{user.firstName}</td>
-                      <td className="px-4 py-2">
-                        {user.lastName ? user.lastName : "-"}
-                      </td>
-                      <td className="px-4 py-2">
-                        {user.company && user.company.length > 0
-                          ? user.company.join(", ")
-                          : "-"}
-                      </td>
-                      <td className="px-4 py-2">
-                        {user.engineeringTeam && user.engineeringTeam.length > 0
-                          ? user.engineeringTeam.join(", ")
-                          : "-"}
-                      </td>
-                      <td className="px-4 py-2">
-                        {user.dateOfBirth
-                          ? format(new Date(user.dateOfBirth), "dd/MM/yyyy")
-                          : "-"}
-                      </td>
-                      <td className="px-4 py-2">{formatRole(user.role)}</td>
-                      <td className="px-4 py-2">
-                        <div
-                          className={`border font-semibold rounded-3xl flex items-center justify-center pt-0.5 pb-0.5 pl-1 pr-1 ${
-                            user.status === "Active"
-                              ? "border-green-600 bg-green-50 text-green-600 text-xs"
-                              : "border-gray-600 bg-gray-50 text-gray-600 text-xs"
-                          }`}
-                        >
-                          {user.status}
-                        </div>
-                      </td>
-                      <td className="flex flex-row items-center justify-center py-2">
-                        <Button
-                          type="link"
-                          icon={<FiEdit3 />}
-                          style={{ width: 32, height: 32, color: "#F97316" }}
-                          onClick={(e) => {
-                            e.stopPropagation(); // Prevents row click
-                            setSavedUserId(user.userId);
-                            showEditModal(user.role);
-                          }}
-                        />
-                        <Button
-                          type="link"
-                          icon={<RiDeleteBinLine />}
-                          style={{ width: 32, height: 32, color: "black" }}
-                          onClick={(e) => {
-                            e.stopPropagation(); // Prevents row click
-                            showDeleteConfirmModal(user.userId);
-                          }}
-                        />
-                      </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={10} className="px-4 py-4 text-center">
-                      {loading ? (
-                        <div className="flex flex-row gap-2 items-center justify-center">
-                          <p>Loading</p>
-                          <Spin />
-                        </div>
-                      ) : (
-                        "No users found"
-                      )}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
           {/* Pagination component */}
           {totalItems > 0 && (

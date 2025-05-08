@@ -202,16 +202,23 @@ const AddUserFormModal = ({
   const getFilteredRoles = () => {
     if (!roles.length) return [];
 
-    switch (currentUserRole?.toUpperCase()) {
-      case "SUPER_ADMIN":
-        return roles.filter(
-          (role) => role.label.toUpperCase() !== "SUPER ADMIN"
-        );
-      case "ADMIN":
-        return roles.filter(
-          (role) => !["SUPER ADMIN", "ADMIN"].includes(role.label.toUpperCase())
-        );
+    if (!currentUserRole) {
+      console.warn("Current user role is undefined. Returning filtered roles.");
+      return roles.filter(
+        (role) => !["SUPER ADMIN", "ADMIN"].includes(role.label.toUpperCase())
+      );
     }
+
+    const upperCurrentRole = currentUserRole.toUpperCase();
+
+    return roles.filter((role) => {
+      const roleLabel = role.label.toUpperCase();
+      return (
+        roleLabel !== "SUPER ADMIN" &&
+        roleLabel !== "ADMIN" &&
+        roleLabel !== upperCurrentRole
+      );
+    });
   };
 
   const filteredRoles = getFilteredRoles();

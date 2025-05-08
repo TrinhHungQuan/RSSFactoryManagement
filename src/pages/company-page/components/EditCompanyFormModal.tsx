@@ -92,7 +92,7 @@ const AddCompanyFormModal = ({
         ></div>
         <div className="relative bg-white rounded-lg shadow-lg w-2/5 min-w-100 mx-4 max-h-[90vh] overflow-y-auto scrollbar-none">
           <div className="flex flex-row justify-between items-center p-4">
-            <h1 className="text-lg font-semibold">Add Company</h1>
+            <h1 className="text-lg font-semibold">Update Company</h1>
             <button onClick={onCancel} className="cursor-pointer">
               <IoClose className="w-5 h-5" />
             </button>

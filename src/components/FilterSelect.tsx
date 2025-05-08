@@ -1,4 +1,5 @@
 import React from "react";
+import { RiArrowDropDownLine } from "react-icons/ri";
 
 export interface Option {
   value: string;
@@ -30,7 +31,14 @@ const FilterSelect = ({
     <div className="relative w-full">
       <div className="flex items-center w-full h-10 font-normal border border-gray-300 rounded px-3 text-sm placeholder-transparent focus-within:border-gray-400 relative">
         <span className="mr-1 font-semibold">{label} :</span>
-        <span className="text-gray-500">{selectedLabel}</span>
+        <span className="text-gray-500 truncate overflow-hidden whitespace-nowrap flex-1">
+          {selectedLabel}
+        </span>
+
+        {/* Arrow indicator */}
+        <span className="ml-auto text-gray-400 pointer-events-none">
+          <RiArrowDropDownLine className="w-5 h-5" />
+        </span>
 
         <select
           id={name}

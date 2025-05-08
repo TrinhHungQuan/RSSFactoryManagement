@@ -55,7 +55,9 @@ const Sider = ({ closeSider, toggleSider, onLogout, isCollapsed }: Props) => {
           Authorization: `Bearer ${accessToken}`,
         },
       });
+      const currentUserId = response.data.result.userId;
       const currentRole = response.data.result.roleName;
+      localStorage.setItem("currentUserId", currentUserId);
       localStorage.setItem("currentRole", currentRole);
       console.log(response.data.result);
       setProfileNameAndRole(response.data.result);

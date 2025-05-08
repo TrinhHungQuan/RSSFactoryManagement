@@ -35,46 +35,95 @@ const UserDetails = ({
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  const showChangePassword = () => {
-    setIsChangePasswordOpen(true);
+  // Get Decode Token for permissions
+  const getDecodedToken = () => {
+    const token =
+      localStorage.getItem("token") || sessionStorage.getItem("token");
+    if (!token) return null;
+
+    try {
+      const base64Url = token.split(".")[1];
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split("")
+          .map((c) => `%${("00" + c.charCodeAt(0).toString(16)).slice(-2)}`)
+          .join("")
+      );
+      return JSON.parse(jsonPayload);
+    } catch (error) {
+      console.error("Error decoding token: ", error);
+      return null;
+    }
   };
 
   const showEditModal = (userRole: string) => {
-    const loggedInUserRole = localStorage.getItem("currentRole");
+    const decodedToken = getDecodedToken();
+    const scope: string = decodedToken?.scope || "";
+    const loggedInUserRole = localStorage.getItem("currentRole")?.toUpperCase();
 
-    // Only allow SUPER_ADMIN and ADMIN to open EditFormModal
-    if (loggedInUserRole !== "SUPER_ADMIN" && loggedInUserRole !== "ADMIN") {
-      setSnackBarMessage("You are not allow to edit users.");
+    if (!scope.includes("EDIT_USER")) {
+      setSnackBarMessage("You do not have permission to edit users.");
       setSnackBarSeverity("error");
       setSnackBarOpen(true);
       return;
     }
 
-    // Prevent ADMIN from editing ADMIN or SUPER_ADMIN
-    if (
-      loggedInUserRole === "ADMIN" &&
-      (userRole === "ADMIN" || userRole === "SUPER_ADMIN")
-    ) {
-      setSnackBarMessage("You are not allow to edit this user.");
+    const targetUserRole = userRole.toUpperCase();
+
+    if (targetUserRole === "SUPER_ADMIN") {
+      setSnackBarMessage("You are not allowed to edit this user.");
       setSnackBarSeverity("error");
       setSnackBarOpen(true);
       return;
     }
 
-    // Prevent SUPER_ADMIN from editing SUPER_ADMIN
-    if (loggedInUserRole === "SUPER_ADMIN" && userRole === "SUPER_ADMIN") {
-      setSnackBarMessage("You are not allow to edit this user.");
+    if (targetUserRole === loggedInUserRole) {
+      setSnackBarMessage("You are not allowed to edit this user.");
       setSnackBarSeverity("error");
       setSnackBarOpen(true);
       return;
     }
-
     setIsEditModalOpen(true);
   };
 
   const handleCancelEditModal = () => {
     setIsEditModalOpen(false);
     editFormik.resetForm();
+  };
+
+  const showChangePassword = (userRole: string) => {
+    const decodedToken = getDecodedToken();
+    const scope: string = decodedToken?.scope || "";
+    const loggedInUserRole = localStorage.getItem("currentRole")?.toUpperCase();
+
+    if (!scope.includes("CHANGE_PASSWORD")) {
+      setSnackBarMessage("You do not have permission to change password.");
+      setSnackBarSeverity("error");
+      setSnackBarOpen(true);
+      return;
+    }
+
+    const targetUserRole = userRole.toUpperCase();
+
+    if (targetUserRole === "SUPER_ADMIN") {
+      setSnackBarMessage(
+        "You are not allowed to change password of this user."
+      );
+      setSnackBarSeverity("error");
+      setSnackBarOpen(true);
+      return;
+    }
+
+    if (targetUserRole === loggedInUserRole) {
+      setSnackBarMessage(
+        "You are not allowed to change password of this user."
+      );
+      setSnackBarSeverity("error");
+      setSnackBarOpen(true);
+      return;
+    }
+    setIsChangePasswordOpen(true);
   };
 
   const handleCancelChangePassword = () => {
@@ -459,7 +508,7 @@ const UserDetails = ({
               }}
               className="!font-semibold flex-1"
               onClick={() => {
-                showChangePassword();
+                showChangePassword(user?.role || "");
               }}
             >
               Change Password

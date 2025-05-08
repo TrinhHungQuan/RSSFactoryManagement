@@ -15,6 +15,8 @@ import SettingsPage from "./pages/settings-page/SettingsPage";
 import ProfilePage from "./pages/profile-page/ProfilePage";
 import LoginPage from "./pages/login-page/LoginPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
+import RoleUpdate from "./pages/roles-page/components/RoleUpdate";
+import RoleAdding from "./pages/roles-page/components/RoleAdding";
 
 function App() {
   return (
@@ -41,6 +43,8 @@ function App() {
           <Route path="materials" element={<MaterialsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="roles/:id" element={<RoleUpdate />} />
+          <Route path="roles/add" element={<RoleAdding />} />
         </Route>
       </Routes>
     </>

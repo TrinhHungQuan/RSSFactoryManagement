@@ -70,7 +70,6 @@ const EditFormModal = ({
 
           if (res.data && res.data.result) {
             const user = res.data.result;
-            // Match roleName to roleId
 
             const mappedUser: User = {
               userId: user.userId,
@@ -284,33 +283,29 @@ const EditFormModal = ({
   };
 
   const getFilteredRoles = () => {
-    if (!roles.length) return []; // If roles are empty, return an empty array.
+    if (!roles.length) return [];
 
-    // Handle the case where the currentUserRole is undefined or doesn't match any case.
+    // Always filter out SUPER ADMIN and ADMIN by default
+    const filteredRoles = roles.filter(
+      (role) => !["SUPER ADMIN", "ADMIN"].includes(role.label.toUpperCase())
+    );
+
     if (!currentUserRole) {
-      console.warn("Current user role is undefined. Returning all roles.");
-      return roles; // Return all roles if the user role is not defined.
+      console.warn("Current user role is undefined. Returning filtered roles.");
+      return filteredRoles;
     }
 
     switch (currentUserRole.toUpperCase()) {
       case "SUPER_ADMIN":
-        // Filter out SUPER ADMIN for SUPER_ADMIN users
+        // SUPER_ADMIN can see ADMIN, so only filter out SUPER ADMIN
         return roles.filter(
           (role) => role.label.toUpperCase() !== "SUPER ADMIN"
         );
 
       case "ADMIN":
-        // Filter out SUPER ADMIN and ADMIN for ADMIN users
-        return roles.filter(
-          (role) => !["SUPER ADMIN", "ADMIN"].includes(role.label.toUpperCase())
-        );
-
       default:
-        // If the role is not recognized, return all roles (or handle accordingly)
-        console.warn(
-          `Unrecognized role: ${currentUserRole}. Returning all roles.`
-        );
-        return roles;
+        // All other roles cannot see SUPER ADMIN or ADMIN
+        return filteredRoles;
     }
   };
 

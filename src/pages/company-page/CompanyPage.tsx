@@ -136,9 +136,12 @@ const CompanyPage = () => {
 
       setAllCompanies(fetchedCompanies);
       setTotalItems(fetchedCompanies.length);
-    } catch (err) {
-      console.error("Error fetching users:", err);
-      setError("Failed to fetch users. Please try again.");
+    } catch (error) {
+      if (error instanceof AxiosError && error.response) {
+        const errorMessage =
+          error.response?.data.message || "An unknown error occurred.";
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -193,8 +196,39 @@ const CompanyPage = () => {
     return filteredCompanies;
   }, [allCompanies, searchQuery, stateQuery, statusQuery]);
 
+  // Get Decode Token for permissions
+  const getDecodedToken = () => {
+    const token =
+      localStorage.getItem("token") || sessionStorage.getItem("token");
+    if (!token) return null;
+
+    try {
+      const base64Url = token.split(".")[1];
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split("")
+          .map((c) => `%${("00" + c.charCodeAt(0).toString(16)).slice(-2)}`)
+          .join("")
+      );
+      return JSON.parse(jsonPayload);
+    } catch (error) {
+      console.error("Error decoding token: ", error);
+      return null;
+    }
+  };
+
   // Handle Show and Cancel Add Company Modal
   const showAddCompanyModal = () => {
+    const decodedToken = getDecodedToken();
+    const scope: string = decodedToken?.scope || "";
+
+    if (!scope.includes("ADD_COMPANY")) {
+      setSnackBarMessage("You do not have permission to add company.");
+      setSnackBarSeverity("error");
+      setSnackBarOpen(true);
+      return;
+    }
     setIsAddCompanyOpen(true);
   };
 
@@ -271,7 +305,7 @@ const CompanyPage = () => {
         fetchAllCompanies();
         handleCancelAddCompanyModal();
       } catch (error) {
-        console.error("Error creating user:", error);
+        console.error("Error creating company:", error);
         if (error instanceof AxiosError && error.response) {
           // If the error has a response object, extract the message
           const errorMessage =
@@ -292,6 +326,15 @@ const CompanyPage = () => {
 
   // Handle Show Edit Company Modal
   const showEditModal = () => {
+    const decodedToken = getDecodedToken();
+    const scope: string = decodedToken?.scope || "";
+
+    if (!scope.includes("EDIT_COMPANY")) {
+      setSnackBarMessage("You do not have permission to edit companies.");
+      setSnackBarSeverity("error");
+      setSnackBarOpen(true);
+      return;
+    }
     setIsEditModalOpen(true);
   };
 
@@ -390,6 +433,15 @@ const CompanyPage = () => {
 
   //  Handle Delete Confirm
   const showDeleteConfirmModal = (companyId: string) => {
+    const decodedToken = getDecodedToken();
+    const scope: string = decodedToken?.scope || "";
+
+    if (!scope.includes("DELETE_COMPANY")) {
+      setSnackBarMessage("You do not have permission to delete companies.");
+      setSnackBarSeverity("error");
+      setSnackBarOpen(true);
+      return;
+    }
     setCompanyIdToDelete(companyId);
     setIsDeleteCompanyConfirmModalOpen(true);
   };
@@ -578,7 +630,7 @@ const CompanyPage = () => {
       </Snackbar>
       <div
         className={`transition-all duration-300 ease-in-out ${
-          isSiderCollapsed ? "lg:pl-[0px] pl-[60px]" : "pl-[220px]"
+          isSiderCollapsed ? "lg:pl-[0px] pl-[60px]" : "lg:pl-[0px] pl-[0px]"
         }`}
       >
         <div className="flex justify-between items-center mt-[22px] mb-4 px-6 w-full">
