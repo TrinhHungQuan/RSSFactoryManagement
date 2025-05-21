@@ -2,12 +2,12 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import siderImage from "../assets/sider_image.png";
 import { BiBarChartSquare } from "react-icons/bi";
-import { FiBriefcase, FiPackage, FiLayers, FiSettings } from "react-icons/fi";
-import { BsTruck } from "react-icons/bs";
+import { FiPackage, FiSettings } from "react-icons/fi";
+//import { BsTruck } from "react-icons/bs";
 import { TbUserCircle } from "react-icons/tb";
-import { LuDot, LuBadgeCheck } from "react-icons/lu";
+import { LuDot } from "react-icons/lu";
 import { TbBuilding } from "react-icons/tb";
-import { TfiArchive } from "react-icons/tfi";
+//import { TfiArchive } from "react-icons/tfi";
 import { CiUser } from "react-icons/ci";
 import {
   IoChevronBack,
@@ -139,7 +139,7 @@ const Sider = ({ closeSider, toggleSider, onLogout, isCollapsed }: Props) => {
             </li>
 
             {/* Job Page*/}
-            <li>
+            {/* <li>
               <NavLink
                 to="/jobs"
                 className={({ isActive }) => navItemClasses(isActive)}
@@ -155,7 +155,7 @@ const Sider = ({ closeSider, toggleSider, onLogout, isCollapsed }: Props) => {
                   {!isCollapsed && "Major Projects - Jobs"}
                 </div>
               </NavLink>
-            </li>
+            </li> */}
 
             {/* Items Page*/}
             <li>
@@ -177,7 +177,7 @@ const Sider = ({ closeSider, toggleSider, onLogout, isCollapsed }: Props) => {
             </li>
 
             {/* Special Project Page*/}
-            <li>
+            {/* <li>
               <NavLink
                 to="/specialprojects"
                 className={({ isActive }) => navItemClasses(isActive)}
@@ -193,10 +193,10 @@ const Sider = ({ closeSider, toggleSider, onLogout, isCollapsed }: Props) => {
                   {!isCollapsed && "Special Project"}
                 </div>
               </NavLink>
-            </li>
+            </li> */}
 
             {/* Delivery Page */}
-            <li>
+            {/* <li>
               <NavLink
                 to="/delivery"
                 className={({ isActive }) => navItemClasses(isActive)}
@@ -212,7 +212,7 @@ const Sider = ({ closeSider, toggleSider, onLogout, isCollapsed }: Props) => {
                   {!isCollapsed && "Delivery"}
                 </div>
               </NavLink>
-            </li>
+            </li> */}
 
             {/* Users & Roles Dropdown */}
             <li>
@@ -298,7 +298,7 @@ const Sider = ({ closeSider, toggleSider, onLogout, isCollapsed }: Props) => {
             </li>
 
             {/* Storage Page */}
-            <li>
+            {/* <li>
               <NavLink
                 to="/storage"
                 className={({ isActive }) => navItemClasses(isActive)}
@@ -314,10 +314,10 @@ const Sider = ({ closeSider, toggleSider, onLogout, isCollapsed }: Props) => {
                   {!isCollapsed && "Storage units"}
                 </div>
               </NavLink>
-            </li>
+            </li> */}
 
             {/* Material Page */}
-            <li>
+            {/* <li>
               <NavLink
                 to="/materials"
                 className={({ isActive }) => navItemClasses(isActive)}
@@ -333,7 +333,7 @@ const Sider = ({ closeSider, toggleSider, onLogout, isCollapsed }: Props) => {
                   {!isCollapsed && "Materials"}
                 </div>
               </NavLink>
-            </li>
+            </li> */}
 
             {/* Setting Page */}
             <li>

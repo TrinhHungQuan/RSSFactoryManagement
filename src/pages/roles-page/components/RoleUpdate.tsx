@@ -56,7 +56,7 @@ const RoleUpdate = () => {
         const token =
           localStorage.getItem("token") || sessionStorage.getItem("token");
 
-        // 1. Fetch all permissions
+        // Fetch all permissions
         const permissionsRes = await axios.get(API_ENDPOINTS.getPermissions, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -72,7 +72,7 @@ const RoleUpdate = () => {
 
         setAllPermissions(fetchedPermissions);
 
-        // 2. Fetch role details only if editing
+        // Fetch role details only if editing
         if (id) {
           const roleRes = await axios.get(
             `${API_ENDPOINTS.getRoleDetails}/${id}`,

@@ -35,8 +35,8 @@ const AddUserFormModal = ({
 
   useEffect(() => {
     if (!isOpen) {
-      setImageUrl(null); // clear image preview
-      onResetImage(); // notify parent if needed
+      setImageUrl(null);
+      onResetImage();
     }
   }, [isOpen, onResetImage]);
 
@@ -181,7 +181,7 @@ const AddUserFormModal = ({
       const response = await axios.post(API_ENDPOINTS.uploadImage, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
-          Authorization: `Bearer ${accessToken}`, // Added Bearer prefix for token
+          Authorization: `Bearer ${accessToken}`,
         },
       });
 
@@ -193,7 +193,7 @@ const AddUserFormModal = ({
       }
     } catch (error) {
       console.error("Upload failed", error);
-      // Clear the file input
+
       event.target.value = "";
     }
   };
@@ -202,23 +202,28 @@ const AddUserFormModal = ({
   const getFilteredRoles = () => {
     if (!roles.length) return [];
 
+    // Always filter out SUPER ADMIN and ADMIN by default
+    const filteredRoles = roles.filter(
+      (role) => !["SUPER ADMIN", "ADMIN"].includes(role.label.toUpperCase())
+    );
+
     if (!currentUserRole) {
       console.warn("Current user role is undefined. Returning filtered roles.");
-      return roles.filter(
-        (role) => !["SUPER ADMIN", "ADMIN"].includes(role.label.toUpperCase())
-      );
+      return filteredRoles;
     }
 
-    const upperCurrentRole = currentUserRole.toUpperCase();
+    switch (currentUserRole.toUpperCase()) {
+      case "SUPER_ADMIN":
+        // SUPER_ADMIN can see ADMIN, so only filter out SUPER ADMIN
+        return roles.filter(
+          (role) => role.label.toUpperCase() !== "SUPER ADMIN"
+        );
 
-    return roles.filter((role) => {
-      const roleLabel = role.label.toUpperCase();
-      return (
-        roleLabel !== "SUPER ADMIN" &&
-        roleLabel !== "ADMIN" &&
-        roleLabel !== upperCurrentRole
-      );
-    });
+      case "ADMIN":
+      default:
+        // All other roles cannot see SUPER ADMIN or ADMIN
+        return filteredRoles;
+    }
   };
 
   const filteredRoles = getFilteredRoles();

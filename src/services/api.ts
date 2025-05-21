@@ -1,4 +1,5 @@
-export const BASE_URL = "https://factorymanager.onrender.com/factory/api";
+//export const BASE_URL = "https://factorymanager.onrender.com/factory/api";
+export const BASE_URL = "http://localhost:8080/factory/api";
 
 export const API_ENDPOINTS = {
   getMyInfo: `${BASE_URL}/users/getmyinfo`,
@@ -24,5 +25,8 @@ export const API_ENDPOINTS = {
   saveUIConfig: `${BASE_URL}/uiconfig/save`,
   getUIConfig: `${BASE_URL}/uiconfig/current`,
   getAllItems: `${BASE_URL}/items/all`,
-  filterItems: `${BASE_URL}/items/filter`
+  filterItems: `${BASE_URL}/items/filter`,
+  getSettings: `${BASE_URL}/Settings/get`,
+  getSettingsById: `${BASE_URL}/Settings`,
+  updateSettings: `${BASE_URL}/Settings`,
 };

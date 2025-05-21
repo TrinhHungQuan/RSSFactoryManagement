@@ -96,7 +96,7 @@ const CompanyPage = () => {
         },
         params: {
           page: 0,
-          size: 10000, // Assumes 10,000 can cover all users
+          size: 10000,
         },
       });
 
@@ -291,14 +291,14 @@ const CompanyPage = () => {
           {
             headers: {
               "Content-Type": "application/json",
-              // Include auth token if your API requires it
+
               ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
             },
           }
         );
         console.log("Company add successfully: ", response.data);
 
-        setSnackBarMessage("Company add successfully"); // Set the success message
+        setSnackBarMessage("Company add successfully");
         setSnackBarSeverity("success");
         setSnackBarOpen(true);
         resetForm();
@@ -307,12 +307,11 @@ const CompanyPage = () => {
       } catch (error) {
         console.error("Error creating company:", error);
         if (error instanceof AxiosError && error.response) {
-          // If the error has a response object, extract the message
           const errorMessage =
             error.response?.data.message || "An unknown error occurred.";
-          setSnackBarMessage(errorMessage); // Set the error message
+          setSnackBarMessage(errorMessage);
           setSnackBarSeverity("error");
-          setSnackBarOpen(true); // Open the Snackbar
+          setSnackBarOpen(true);
         } else {
           setSnackBarMessage("Network error. Please try again later.");
           setSnackBarSeverity("error");
@@ -398,28 +397,26 @@ const CompanyPage = () => {
           {
             headers: {
               "Content-Type": "application/json",
-              // Include auth token if your API requires it
               ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
             },
           }
         );
         console.log("Company update successfully: ", response.data);
 
-        setSnackBarMessage("Company updated successfully"); // Set the success message
+        setSnackBarMessage("Company updated successfully");
         setSnackBarSeverity("success");
         setSnackBarOpen(true);
         resetForm();
         fetchAllCompanies();
         handleCancelEditModal();
       } catch (error) {
-        console.error("Error creating user:", error);
+        console.error("Error updating company:", error);
         if (error instanceof AxiosError && error.response) {
-          // If the error has a response object, extract the message
           const errorMessage =
             error.response?.data.message || "An unknown error occurred.";
-          setSnackBarMessage(errorMessage); // Set the error message
+          setSnackBarMessage(errorMessage);
           setSnackBarSeverity("error");
-          setSnackBarOpen(true); // Open the Snackbar
+          setSnackBarOpen(true);
         } else {
           setSnackBarMessage("Network error. Please try again later.");
           setSnackBarSeverity("error");
@@ -879,10 +876,10 @@ const CompanyPage = () => {
               {/* Pagination controls */}
               <Pagination
                 pageSize={pageSize}
-                current={currentPage + 1} // Convert to 1-indexed
+                current={currentPage + 1}
                 total={totalItems}
                 onChange={handlePageChange}
-                showSizeChanger={false} // We use custom size dropdown on the left
+                showSizeChanger={false}
               />
             </div>
           )}

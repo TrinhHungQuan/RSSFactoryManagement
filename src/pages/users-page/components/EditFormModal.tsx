@@ -119,8 +119,8 @@ const EditFormModal = ({
 
   useEffect(() => {
     if (!isOpen) {
-      setImageUrl(null); //clear image preview
-      onResetImage(); //notify parent if needed
+      setImageUrl(null);
+      onResetImage();
     }
   }, [isOpen, onResetImage]);
 
@@ -265,7 +265,7 @@ const EditFormModal = ({
       const response = await axios.post(API_ENDPOINTS.uploadImage, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
-          Authorization: `Bearer ${accessToken}`, // Added Bearer prefix for token
+          Authorization: `Bearer ${accessToken}`,
         },
       });
 
@@ -277,7 +277,6 @@ const EditFormModal = ({
       }
     } catch (error) {
       console.error("Upload failed", error);
-      // Clear the file input
       event.target.value = "";
     }
   };

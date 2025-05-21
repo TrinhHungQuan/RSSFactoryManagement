@@ -187,27 +187,25 @@ const UserDetails = ({
           {
             headers: {
               "Content-Type": "application/json",
-              // Include auth token if your API requires it
               ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
             },
           }
         );
         console.log("Password change successfully: ", response.data);
 
-        setSnackBarMessage("Password change successfully"); // Set the success message
+        setSnackBarMessage("Password change successfully");
         setSnackBarSeverity("success");
         setSnackBarOpen(true);
         resetForm();
         handleCancelChangePassword();
       } catch (error) {
-        console.error("Error creating user:", error);
+        console.error("Error change password:", error);
         if (error instanceof AxiosError && error.response) {
-          // If the error has a response object, extract the message
           const errorMessage =
             error.response?.data.message || "An unknown error occurred.";
-          setSnackBarMessage(errorMessage); // Set the error message
+          setSnackBarMessage(errorMessage);
           setSnackBarSeverity("error");
-          setSnackBarOpen(true); // Open the Snackbar
+          setSnackBarOpen(true);
         } else {
           setSnackBarMessage("Network error. Please try again later.");
           setSnackBarSeverity("error");
@@ -223,7 +221,7 @@ const UserDetails = ({
     if (!dateStr) return null;
     try {
       const parsed = parse(dateStr, "dd/MM/yyyy", new Date());
-      return format(parsed, "yyyy-MM-dd"); // format to what backend expects
+      return format(parsed, "yyyy-MM-dd");
     } catch {
       return null;
     }
@@ -312,14 +310,14 @@ const UserDetails = ({
           {
             headers: {
               "Content-Type": "application/json",
-              // Include auth token if your API requires it
+
               ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
             },
           }
         );
         console.log("User updated successfully: ", response.data);
 
-        setSnackBarMessage("Update user successfully"); // Set the success message
+        setSnackBarMessage("Update user successfully");
         setSnackBarSeverity("success");
         setSnackBarOpen(true);
         handleCancelEditModal();

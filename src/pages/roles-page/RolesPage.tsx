@@ -50,7 +50,7 @@ const RolesPage = () => {
         },
         params: {
           page: 0,
-          size: 10000, // Assumes 10,000 can cover all users
+          size: 10000, // Assumes 10,000 can cover all
         },
       });
 
@@ -77,7 +77,7 @@ const RolesPage = () => {
     fetchAllRoles();
   }, []);
 
-  // Update users when page or pageSize changes
+  // Update when page or pageSize changes
   useEffect(() => {
     const startIndex = currentPage * pageSize;
     const endIndex = startIndex + pageSize;
@@ -267,10 +267,10 @@ const RolesPage = () => {
               {/* Pagination controls */}
               <Pagination
                 pageSize={pageSize}
-                current={currentPage + 1} // Convert to 1-indexed
+                current={currentPage + 1}
                 total={totalItems}
                 onChange={handlePageChange}
-                showSizeChanger={false} // We use custom size dropdown on the left
+                showSizeChanger={false}
               />
             </div>
           )}

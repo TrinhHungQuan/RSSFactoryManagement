@@ -362,7 +362,7 @@ const UsersPage = () => {
     if (!dateStr) return null;
     try {
       const parsed = parse(dateStr, "dd/MM/yyyy", new Date());
-      return format(parsed, "yyyy-MM-dd"); // format to what backend expects
+      return format(parsed, "yyyy-MM-dd");
     } catch {
       return null;
     }
@@ -465,14 +465,13 @@ const UsersPage = () => {
           {
             headers: {
               "Content-Type": "application/json",
-              // Include auth token if your API requires it
               ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
             },
           }
         );
         console.log("User created successfully: ", response.data);
 
-        setSnackBarMessage("Create user successfully"); // Set the success message
+        setSnackBarMessage("Create user successfully");
         setSnackBarSeverity("success");
         setSnackBarOpen(true);
 
@@ -482,12 +481,11 @@ const UsersPage = () => {
       } catch (error) {
         console.error("Error creating user:", error);
         if (error instanceof AxiosError && error.response) {
-          // If the error has a response object, extract the message
           const errorMessage =
             error.response?.data.message || "An unknown error occurred.";
-          setSnackBarMessage(errorMessage); // Set the error message
+          setSnackBarMessage(errorMessage);
           setSnackBarSeverity("error");
-          setSnackBarOpen(true); // Open the Snackbar
+          setSnackBarOpen(true);
         } else {
           setSnackBarMessage("Network error. Please try again later.");
           setSnackBarSeverity("error");
@@ -583,14 +581,14 @@ const UsersPage = () => {
           {
             headers: {
               "Content-Type": "application/json",
-              // Include auth token if your API requires it
+
               ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
             },
           }
         );
         console.log("User updated successfully: ", response.data);
 
-        setSnackBarMessage("Update user successfully"); // Set the success message
+        setSnackBarMessage("Update user successfully");
         setSnackBarSeverity("success");
         setSnackBarOpen(true);
         handleCancelEditModal();
@@ -599,12 +597,11 @@ const UsersPage = () => {
       } catch (error) {
         console.error("Error updating user:", error);
         if (error instanceof AxiosError && error.response) {
-          // If the error has a response object, extract the message
           const errorMessage =
             error.response?.data.message || "An unknown error occurred.";
-          setSnackBarMessage(errorMessage); // Set the error message
+          setSnackBarMessage(errorMessage);
           setSnackBarSeverity("error");
-          setSnackBarOpen(true); // Open the Snackbar
+          setSnackBarOpen(true);
         } else {
           setSnackBarMessage("Network error. Please try again later.");
           setSnackBarSeverity("error");
@@ -1133,7 +1130,7 @@ const UsersPage = () => {
                             icon={<RiDeleteBinLine />}
                             style={{ width: 32, height: 32, color: "black" }}
                             onClick={(e) => {
-                              e.stopPropagation(); // Prevents row click
+                              e.stopPropagation();
                               showDeleteConfirmModal(user.userId, user.role);
                             }}
                           />
@@ -1180,10 +1177,10 @@ const UsersPage = () => {
               {/* Pagination controls */}
               <Pagination
                 pageSize={pageSize}
-                current={currentPage + 1} // Convert to 1-indexed
+                current={currentPage + 1}
                 total={totalItems}
                 onChange={handlePageChange}
-                showSizeChanger={false} // We use custom size dropdown on the left
+                showSizeChanger={false}
               />
             </div>
           )}

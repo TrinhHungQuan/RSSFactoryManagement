@@ -59,7 +59,6 @@ const LoginForm = () => {
       } catch (error) {
         console.error("Login error:", error);
         if (error instanceof AxiosError && error.response) {
-          // If the error has a response object, extract the message
           const errorMessage =
             error.response?.data.message || "An unknown error occurred.";
           setSnackBarMessage(errorMessage);

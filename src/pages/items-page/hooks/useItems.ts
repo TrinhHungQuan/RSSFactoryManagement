@@ -25,8 +25,8 @@ export interface Item {
   dims8: string;
   dims9: string;
   dims10: string;
-  ftime: number;
-  mrate: number;
+  fTime: number;
+  mRate: number;
   connector1: string;
   connector2: string;
   connector3: string;

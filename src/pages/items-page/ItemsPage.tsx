@@ -2,14 +2,21 @@ import { Pagination, Spin } from "antd";
 import SearchInput from "../../components/SearchInput";
 import FilterSelect from "../../components/FilterSelect";
 import { useEffect, useState } from "react";
-import { RxLayout } from "react-icons/rx";
+import { RxCaretDown, RxCaretSort, RxCaretUp, RxLayout } from "react-icons/rx";
 import UIConfigModal from "./components/UIConfig";
 import axios, { AxiosError } from "axios";
 import { API_ENDPOINTS } from "../../services/api";
 import { IoChevronDown, IoChevronUp, IoWarningOutline } from "react-icons/io5";
 import { ApiItem, Item } from "./hooks/useItems";
 import { FaRegCheckCircle, FaRegCircle } from "react-icons/fa";
-import { format, parse } from "date-fns";
+import {
+  endOfDay,
+  format,
+  isWithinInterval,
+  parse,
+  startOfDay,
+} from "date-fns";
+import DateRangePicker from "../../components/DateRangePicker";
 
 interface ConfigFilter {
   name: string;
@@ -33,6 +40,13 @@ const ItemsPage = () => {
     Record<string, { label: string; value: string }[]>
   >({});
 
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc" | "none">("none");
+
+  // Filters by Date
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+
   // Other Filters Open And Close
   const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(true);
 
@@ -49,11 +63,14 @@ const ItemsPage = () => {
     text.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase());
 
   // Format Date
-  function formatDate(dateStr: string | null): string | null {
-    if (!dateStr) return null;
+  function formatDate(date: string | Date | null): string | null {
+    if (!date) return null;
     try {
-      const parsed = parse(dateStr, "MM/dd/yyyy", new Date());
-      return format(parsed, "dd/MM/yyy"); // format to what backend expects
+      if (date instanceof Date) {
+        return format(date, "dd/MM/yyyy");
+      }
+      const parsed = parse(date, "MM/dd/yyyy", new Date());
+      return format(parsed, "dd/MM/yyyy");
     } catch {
       return null;
     }
@@ -90,13 +107,12 @@ const ItemsPage = () => {
       const toCamelCase = (str: string) =>
         str
           .toLowerCase()
-          .replace(/[^a-zA-Z0-9 ]/g, "") // remove non-alphanumeric chars
+          .replace(/[^a-zA-Z0-9 ]/g, "")
           .replace(/(?:^\w|[A-Z]|\b\w)/g, (word, index) =>
             index === 0 ? word.toLowerCase() : word.toUpperCase()
           )
           .replace(/\s+/g, "");
 
-      // Use parsedConfig to create filter objects
       const convertedFilters = parsedConfig.map((label) => ({
         name: toCamelCase(label),
         label,
@@ -180,7 +196,6 @@ const ItemsPage = () => {
             productCode: item.productCode,
             ductArea: item.ductArea,
             jobId: item.jobId,
-            // Handle file property correctly - it's an object with a fileName property
             fileName: item.fileName,
             readyQty: item.readyQty,
             deliveredQty: item.deliveredQty,
@@ -191,7 +206,7 @@ const ItemsPage = () => {
 
         setAllItems(fetchedItems);
         setRawItems(fetchedItems);
-        // Update pagination info from the API response
+
         if (response.data.result.totalElements) {
           setTotalItems(response.data.result.totalElements);
         }
@@ -215,12 +230,33 @@ const ItemsPage = () => {
     fetchAllItems();
   }, []);
 
-  // Update users when page or pageSize changes
+  // Update items when page, pageSize or changes
   useEffect(() => {
     const startIndex = currentPage * pageSize;
     const endIndex = startIndex + pageSize;
-    setItems(allItems.slice(startIndex, endIndex));
-  }, [currentPage, pageSize, allItems]);
+
+    // Apply sorting to the entire dataset first
+    const sortedItems = [...allItems];
+
+    // Sorting
+    if (sortKey && sortOrder !== "none") {
+      sortedItems.sort((a, b) => {
+        const aVal = a[sortKey as keyof Item];
+        const bVal = b[sortKey as keyof Item];
+
+        if (typeof aVal === "number" && typeof bVal === "number") {
+          return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+        }
+
+        return sortOrder === "asc"
+          ? String(aVal).localeCompare(String(bVal))
+          : String(bVal).localeCompare(String(aVal));
+      });
+    }
+
+    // Set the items for the current page after sorting
+    setItems(sortedItems.slice(startIndex, endIndex));
+  }, [currentPage, pageSize, allItems, sortKey, sortOrder]);
 
   // Page Handle
   const handlePageChange = (page: number) => {
@@ -272,17 +308,37 @@ const ItemsPage = () => {
     }));
   };
 
+  // Define custom key mapping
+  const customKeyMap: Record<string, string> = {
+    ftime: "fTime",
+    mrate: "mRate",
+  };
+
+  const fieldsToKeepAsString = ["pieceNo"];
+
   // Apply filters
   const handleApplyFilters = async () => {
     try {
       setLoading(true);
 
-      // Convert string values to numbers
       const normalizedFilters = Object.fromEntries(
         Object.entries(filterValues).map(([key, value]) => {
-          const numberValue = Number(value);
-          const isNumber = !isNaN(numberValue) && value.trim() !== "";
-          return [key, isNumber ? numberValue : value];
+          const mappedKey = customKeyMap[key] || key;
+          const trimmed = value.trim().toLowerCase();
+
+          const isNumber = !isNaN(Number(value)) && trimmed !== "";
+          const isBoolean = trimmed === "true" || trimmed === "false";
+
+          return [
+            mappedKey,
+            fieldsToKeepAsString.includes(key)
+              ? trimmed
+              : isNumber
+              ? Number(value)
+              : isBoolean
+              ? trimmed.toLowerCase() === "true"
+              : trimmed,
+          ];
         })
       );
 
@@ -313,6 +369,16 @@ const ItemsPage = () => {
         );
       }
 
+      if (startDate && endDate) {
+        content = content.filter((item: Item) => {
+          const createdAt = new Date(item.createdAt);
+          return isWithinInterval(createdAt, {
+            start: startOfDay(startDate),
+            end: endOfDay(endDate),
+          });
+        });
+      }
+
       setIsFiltersCollapsed(true);
       setAllItems(content);
       setTotalItems(content.length);
@@ -320,6 +386,19 @@ const ItemsPage = () => {
       console.error("Error applying filters:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle Sort
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      const nextOrder =
+        sortOrder === "none" ? "asc" : sortOrder === "asc" ? "desc" : "none";
+      setSortOrder(nextOrder);
+      if (nextOrder === "none") setSortKey(null);
+    } else {
+      setSortKey(key);
+      setSortOrder("asc");
     }
   };
 
@@ -351,6 +430,16 @@ const ItemsPage = () => {
               />
             </div>
             <div className="flex flex-row gap-2 items-center w-1/3">
+              <DateRangePicker
+                startDate={startDate}
+                endDate={endDate}
+                onChange={(range: [Date | null, Date | null]) => {
+                  const [startDate, endDate] = range;
+
+                  setStartDate(startDate);
+                  setEndDate(endDate);
+                }}
+              />
               <button
                 className="h-10 w-10 border rounded border-gray-300 flex justify-center items-center cursor-pointer"
                 onClick={showUIConfigModal}
@@ -458,7 +547,7 @@ const ItemsPage = () => {
                         Object.keys(items[0]).map((key) => (
                           <th
                             key={key}
-                            className={`px-4 py-2 font-semibold ${
+                            className={`px-4 py-2 font-semibold cursor-pointer ${
                               key === "status"
                                 ? "max-w-[150px]"
                                 : "min-w-[200px]"
@@ -469,8 +558,20 @@ const ItemsPage = () => {
                                 ? "text-right"
                                 : "text-left"
                             } `}
+                            onClick={() => handleSort(key)}
                           >
-                            {toNormalCase(key)}
+                            <span className="flex items-center justify-start">
+                              {toNormalCase(key)}
+                              {sortKey !== key && (
+                                <RxCaretSort className="w-4 h-4" />
+                              )}
+                              {sortKey === key && sortOrder === "asc" && (
+                                <RxCaretDown className="w-4 h-4" />
+                              )}
+                              {sortKey === key && sortOrder === "desc" && (
+                                <RxCaretUp className="w-4 h-4" />
+                              )}
+                            </span>
                           </th>
                         ))}
                     </tr>
@@ -552,8 +653,13 @@ const ItemsPage = () => {
                                 ) : typeof value === "string" &&
                                   /^\d{2}\/\d{2}\/\d{4}$/.test(value) ? (
                                   formatDate(value)
+                                ) : typeof value === "string" &&
+                                  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(
+                                    value
+                                  ) ? (
+                                  formatDate(new Date(value))
                                 ) : value instanceof Date ? (
-                                  value.toLocaleDateString()
+                                  formatDate(value.toLocaleDateString())
                                 ) : (
                                   String(value)
                                 )}
@@ -607,10 +713,10 @@ const ItemsPage = () => {
                 {/* Pagination controls */}
                 <Pagination
                   pageSize={pageSize}
-                  current={currentPage + 1} // Convert to 1-indexed
+                  current={currentPage + 1}
                   total={totalItems}
                   onChange={handlePageChange}
-                  showSizeChanger={false} // We use custom size dropdown on the left
+                  showSizeChanger={false}
                 />
               </div>
             )}
